@@ -92,7 +92,7 @@ balloon_logic_html = """
                 }
 
                 if (mode === 'blowing') {
-                    if (smoothedVolume > 25) {
+                    if (smoothedVolume > 10) {
                         radius += 1.2;
                     } else {
                         radius -= 0.2;
