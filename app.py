@@ -10,104 +10,86 @@ import random
 
 # --- 1. 呼吸氣球 HTML/JS (含精準頻率過濾與吹吸循環) ---
 balloon_logic_html = """
+balloon_logic_html = """
 <div style="text-align: center; font-family: sans-serif; background: #ffffff; padding: 10px; border-radius: 20px;">
     <canvas id="balloonCanvas" width="300" height="400"></canvas>
     <div id="status" style="font-size: 20px; font-weight: bold; color: #ff4b4b; margin: 10px 0;">準備好練習呼吸了嗎？</div>
-    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #ff4b4b; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(255,75,75,0.3);">🎤 開始深呼吸練習</button>
+    <div id="debug" style="font-size: 12px; color: #ccc;">偵測數值: 0</div>
+    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #ff4b4b; color: white; border: none; border-radius: 50px; cursor: pointer;">🎤 開始深呼吸練習</button>
 </div>
 
 <script>
-    const canvas = document.getElementById('balloonCanvas');
-    const ctx = canvas.getContext('2d');
-    const statusText = document.getElementById('status');
-    const startBtn = document.getElementById('startBtn');
-
-    let radius = 50;
-    let targetRadius = 110;
-    let mode = 'idle'; 
-    let smoothedVolume = 0;
+    // 確保重新取得元素
+    var canvas = document.getElementById('balloonCanvas');
+    var ctx = canvas.getContext('2d');
+    var radius = 50;
+    var targetRadius = 110;
+    var mode = 'idle';
+    var smoothedVolume = 0;
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // 1. 目標虛線
-        ctx.beginPath();
-        ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
-        ctx.setLineDash([5, 8]);
-        ctx.strokeStyle = '#dddddd';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // 2. 氣球
-        ctx.beginPath();
-        ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
-        ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b';
-        ctx.fill();
-        
-        // 3. 繩子
-        ctx.beginPath();
-        ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
+        // 目標虛線
+        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
+        ctx.setLineDash([5, 8]); ctx.strokeStyle = '#dddddd'; ctx.stroke(); ctx.setLineDash([]);
+        // 氣球
+        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
+        ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b'; ctx.fill();
+        // 繩子
+        ctx.beginPath(); ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
         ctx.lineTo(canvas.width/2, canvas.height/2 + radius + 50);
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 3; ctx.stroke();
         requestAnimationFrame(draw);
     }
+    draw();
 
-    startBtn.onclick = async function() {
+    document.getElementById('startBtn').onclick = async function() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const analyser = audioContext.createAnalyser();
             const source = audioContext.createMediaStreamSource(stream);
-            analyser.fftSize = 512;
+            analyser.fftSize = 256;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
             source.connect(analyser);
 
-            startBtn.style.display = 'none';
+            this.style.display = 'none';
             mode = 'blowing';
-            statusText.innerText = "💨 吐氣：對著麥克風「呼～」";
+            document.getElementById('status').innerText = "💨 吐氣：呼～～～";
 
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            
             function process() {
                 analyser.getByteFrequencyData(dataArray);
-                let blowingEnergy = 0;
-                let speechEnergy = 0;
+                let sum = 0;
+                for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                let avg = sum / dataArray.length;
                 
-                for(let i = 0; i < dataArray.length; i++) {
-                    if (i > 25 && i < 120) blowingEnergy += dataArray[i]; // 偵測中高頻吹氣
-                    if (i <= 25) speechEnergy += dataArray[i];            // 背景低頻音
-                }
-                
-                let avgBlowing = blowingEnergy / 95;
-                let avgSpeech = speechEnergy / 25;
+                // 顯示數值給你看，方便我們除錯
+                document.getElementById('debug').innerText = "偵測數值: " + Math.floor(avg);
 
-                // 排除說話與背景音：吹氣能量需顯著高於低頻音
-                if (avgBlowing > 15 && avgBlowing > avgSpeech * 1.1){
-                    smoothedVolume = smoothedVolume * 0.7 + avgBlowing * 0.3;
+                // 只需大於 10 就代表有收到聲音
+                if (avg > 10) {
+                    smoothedVolume = smoothedVolume * 0.5 + avg * 0.5;
                 } else {
                     smoothedVolume = smoothedVolume * 0.8;
                 }
 
                 if (mode === 'blowing') {
-                    if (smoothedVolume > 10) {
-                        radius += 1.2;
+                    if (smoothedVolume > 15) {
+                        radius += 1.5;
                     } else {
                         radius -= 0.2;
                     }
                     if (radius >= targetRadius) {
                         mode = 'inhaling';
-                        statusText.innerText = "🌈 成功！現在請「慢慢吸氣」...";
-                        statusText.style.color = "#4dabf7";
+                        document.getElementById('status').innerText = "🌈 慢慢吸氣...";
+                        document.getElementById('status').style.color = "#4dabf7";
                     }
                 } else if (mode === 'inhaling') {
-                    radius -= 0.35; 
+                    radius -= 0.4;
                     if (radius <= 55) {
                         mode = 'blowing';
-                        statusText.innerText = "💨 吐氣：再來一次「呼～」";
-                        statusText.style.color = "#ff4b4b";
+                        document.getElementById('status').innerText = "💨 再吐一次氣！";
+                        document.getElementById('status').style.color = "#ff4b4b";
                     }
                 }
                 radius = Math.max(50, Math.min(radius, 145));
@@ -115,12 +97,12 @@ balloon_logic_html = """
             }
             process();
         } catch (err) {
-            statusText.innerText = "❌ 麥克風權限未開啟";
+            document.getElementById('status').innerText = "❌ 麥克風啟動失敗";
         }
     };
-    draw();
 </script>
 """
+
 
 # --- 2. 核心模型與存檔設定 ---
 st.set_page_config(page_title="情緒小精靈-研究版", page_icon="🌈")
