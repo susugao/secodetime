@@ -146,6 +146,9 @@ with st.sidebar:
     st.title("📊 研究數據管理後台")
     st.caption("僅供廖長彥教授與研究者使用")
     if st.checkbox("顯示學生紀錄清單"):
+        # 暫時加入這行來刪除舊格式檔案，跑通一次後就可以把這行刪掉
+if os.path.exists("student_logs.csv"):
+    os.remove("student_logs.csv")
         if os.path.exists("student_logs.csv"):
             df = pd.read_csv("student_logs.csv")
             st.dataframe(df)
