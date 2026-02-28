@@ -189,7 +189,7 @@ if st.session_state.get('submitted'):
     
     if label in ["憤怒", "悲傷", "厭惡"]:
         st.info("🌟 氣球練習時間：吹氣讓氣球碰到虛線，然後跟著它慢慢吸氣。")
-        components.html(balloon_logic_html, height=450)
+        components.html(balloon_logic_html, height=600)
     else:
         st.balloons()
         st.success("紀錄成功！你今天做得很棒！")
