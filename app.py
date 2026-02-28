@@ -17,95 +17,79 @@ balloon_logic_html = """
 </div>
 
 <script>
-    const canvas = document.getElementById('balloonCanvas');
-    const ctx = canvas.getContext('2d');
-    const statusText = document.getElementById('status');
-    const startBtn = document.getElementById('startBtn');
+    // --- 優化後的偵測邏輯 ---
+startBtn.onclick = async function() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    
+    // 增加 FFT 大小以提高頻率解析度
+    analyser.fftSize = 512;
+    source.connect(analyser);
 
-    let radius = 50;
-    let targetRadius = 110;
-    let mode = 'idle'; // idle, blowing (吹氣), inhaling (吸氣)
-    let smoothedVolume = 0;
+    startBtn.style.display = 'none';
+    mode = 'blowing';
+    statusText.innerText = "💨 吹氣練習：對著麥克風「呼～」";
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    function process() {
+        analyser.getByteFrequencyData(dataArray);
         
-        // 繪製目標虛線
-        ctx.beginPath();
-        ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
-        ctx.setLineDash([5, 10]);
-        ctx.strokeStyle = '#bbb';
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // 繪製氣球
-        ctx.beginPath();
-        ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
-        ctx.fillStyle = mode === 'inhaling' ? '#4dabf7' : '#ff6b6b';
-        ctx.fill();
+        // 【精準核心】吹氣聲通常落在 2000Hz ~ 8000Hz 之間
+        // 我們只計算中高頻段的能量，忽略低頻的說話聲與環境音
+        let blowingEnergy = 0;
+        let speechEnergy = 0;
         
-        // 氣球繩子
-        ctx.beginPath();
-        ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
-        ctx.lineTo(canvas.width/2, canvas.height/2 + radius + 40);
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        requestAnimationFrame(draw);
-    }
-
-    startBtn.onclick = async function() {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const analyser = audioContext.createAnalyser();
-        const source = audioContext.createMediaStreamSource(stream);
-        analyser.fftSize = 256;
-        source.connect(analyser);
-
-        startBtn.style.display = 'none';
-        mode = 'blowing';
-        statusText.innerText = "💨 吹氣：讓氣球碰到虛線！";
-
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        for(let i = 0; i < dataArray.length; i++) {
+            if (i > 20 && i < 100) { // 中高頻段 (吹氣主要區域)
+                blowingEnergy += dataArray[i];
+            }
+            if (i <= 20) { // 低頻段 (說話與背景音區域)
+                speechEnergy += dataArray[i];
+            }
+        }
         
-        function process() {
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
-            let volume = sum / dataArray.length;
+        let avgBlowing = blowingEnergy / 80;
+        let avgSpeech = speechEnergy / 20;
 
-            // 平滑化處理：避免忽大忽小
-            smoothedVolume = smoothedVolume * 0.8 + volume * 0.2;
+        // 【邏輯判斷】
+        // 只有當「吹氣能量」遠大於「背景說話能量」時，氣球才長大
+        // 這能有效防止因為說話或環境音導致的誤判
+        if (avgBlowing > 45 && avgBlowing > avgSpeech * 1.2) {
+            smoothedVolume = smoothedVolume * 0.7 + avgBlowing * 0.3;
+        } else {
+            smoothedVolume = smoothedVolume * 0.9 + 0; // 快速歸零
+        }
 
-            if (mode === 'blowing') {
-                if (smoothedVolume > 20) {
-                    radius += 0.8;
-                } else {
-                    radius -= 0.2;
-                }
-                
-                if (radius >= targetRadius) {
-                    mode = 'inhaling';
-                    statusText.innerText = "🌈 成功！現在慢慢吸氣...";
-                    statusText.style.color = "#4dabf7";
-                }
-            } else if (mode === 'inhaling') {
-                // 吸氣模式下氣球自動緩慢縮小
-                radius -= 0.5;
-                if (radius <= 50) {
-                    mode = 'blowing';
-                    statusText.innerText = "💨 再吹一次氣！";
-                    statusText.style.color = "#ff4b4b";
-                }
+        if (mode === 'blowing') {
+            if (smoothedVolume > 30) {
+                radius += 1.5; // 吹氣時長大
+            } else {
+                radius -= 0.3; // 沒吹時慢慢縮小
             }
             
-            radius = Math.max(50, Math.min(radius, 130));
-            requestAnimationFrame(process);
+            if (radius >= targetRadius) {
+                mode = 'inhaling';
+                statusText.innerText = "🌈 碰到虛線了！現在請「慢慢吸氣」...";
+                statusText.style.color = "#4dabf7";
+            }
+        } else if (mode === 'inhaling') {
+            // 吸氣模式：學生只要保持安靜吸氣，氣球會穩定縮小
+            radius -= 0.4; 
+            if (radius <= 50) {
+                mode = 'blowing';
+                statusText.innerText = "💨 吐氣：再來一次「呼～」";
+                statusText.style.color = "#ff4b4b";
+            }
         }
-        process();
-    };
-    draw();
+        
+        radius = Math.max(50, Math.min(radius, 140));
+        requestAnimationFrame(process);
+    }
+    process();
+};
 </script>
 """
 
