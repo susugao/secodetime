@@ -66,7 +66,7 @@ balloon_logic_html = """
 
                 // 核心邏輯：音量必須超過 40 且處於吹氣模式
                 if (mode === 'blowing') {
-                    if (avg > 40) {
+                    if (avg > 60) {
                         radius += 2.5; // 吹氣時長大
                     } else {
                         radius -= 0.5; // 沒吹時慢慢縮回
