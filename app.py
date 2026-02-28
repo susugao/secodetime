@@ -1,4 +1,97 @@
 import streamlit as st
+import streamlit.components.v1 as components
+
+# --- 1. 定義 HTML/JS 氣球動畫組件 ---
+# 這段代碼會建立一個畫布，並用 JavaScript 控制氣球放大縮小
+balloon_interactive_html = """
+<div style="text-align: center; font-family: sans-serif;">
+    <canvas id="balloonCanvas" width="300" height="300" style="border: 1px solid #ddd; border-radius: 15px; background-color: #f9f9f9;"></canvas>
+    <div style="margin-top: 15px;">
+        <button id="breatheInBtn" style="padding: 10px 20px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">🌸 吸氣 (氣球變大)</button>
+        <button id="breatheOutBtn" style="padding: 10px 20px; font-size: 16px; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">🍃 吐氣 (氣球變小)</button>
+    </div>
+    <p id="instructionText" style="font-size: 18px; color: #555; margin-top: 10px;">跟著小精靈一起做深呼吸吧！</p>
+</div>
+
+<script>
+    const canvas = document.getElementById('balloonCanvas');
+    const ctx = canvas.getContext('2d');
+    const breatheInBtn = document.getElementById('breatheInBtn');
+    const breatheOutBtn = document.getElementById('breatheOutBtn');
+    const instructionText = document.getElementById('instructionText');
+
+    // 氣球初始狀態
+    let balloon = {
+        x: canvas.width / 2,
+        y: canvas.height / 2 + 30, // 稍微往下移，留出空間給結
+        radius: 40,
+        color: '#ff6b6b' // 溫暖的紅色
+    };
+
+    // 繪製氣球的函數
+    function drawBalloon(r) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空畫布
+
+        // 繪製氣球主體
+        ctx.beginPath();
+        ctx.arc(balloon.x, balloon.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = balloon.color;
+        ctx.fill();
+        ctx.closePath();
+
+        // 繪製氣球的結
+        ctx.beginPath();
+        ctx.moveTo(balloon.x, balloon.y + r);
+        ctx.lineTo(balloon.x - 10, balloon.y + r + 15);
+        ctx.lineTo(balloon.x + 10, balloon.y + r + 15);
+        ctx.fillStyle = balloon.color;
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    // 初始繪製
+    drawBalloon(balloon.radius);
+
+    // --- 互動邏輯 ---
+    let targetRadius = 40;
+    const minRadius = 40;
+    const maxRadius = 100;
+    const animationSpeed = 2; // 調整動畫流暢度
+
+    function animate() {
+        if (balloon.radius < targetRadius) {
+            balloon.radius += animationSpeed;
+            if (balloon.radius > targetRadius) balloon.radius = targetRadius;
+        } else if (balloon.radius > targetRadius) {
+            balloon.radius -= animationSpeed;
+            if (balloon.radius < targetRadius) balloon.radius = targetRadius;
+        }
+
+        drawBalloon(balloon.radius);
+
+        if (balloon.radius !== targetRadius) {
+            requestAnimationFrame(animate);
+        }
+    }
+
+    // 點擊吸氣按鈕
+    breatheInBtn.addEventListener('click', () => {
+        targetRadius = maxRadius;
+        instructionText.innerText = "🌸 慢慢吸氣... 感覺小腹變大... (氣球也變大囉)";
+        instructionText.style.color = "#4CAF50";
+        animate();
+    });
+
+    // 點擊吐氣按鈕
+    breatheOutBtn.addEventListener('click', () => {
+        targetRadius = minRadius;
+        instructionText.innerText = "🍃 慢慢吐氣... 把煩惱都吐出來... (氣球縮小囉)";
+        instructionText.style.color = "#2196F3";
+        animate();
+    });
+</script>
+"""
+import streamlit as st
 from transformers import pipeline
 from streamlit_mic_recorder import mic_recorder
 import whisper
@@ -102,3 +195,25 @@ if final_text:
             st.write("3. 慢慢吐氣... 1, 2, 3...")
             if st.button("我做完了，感覺好一點了"):
                 st.success("你真棒！自我覺察第一步完成！")
+# --- 在情緒分析與視覺回饋之後 ---
+# 假設你之前的 label 翻譯字典與回饋字典都還在
+
+if final_text:
+    prediction = emo_classifier(final_text)[0]
+    label = label_map.get(prediction['label'], "平淡")
+    
+    # ... (之前的 Emoji 顯示與 random message 顯示) ...
+
+    # 4. 關鍵介入：當偵測到負面情緒時，彈出視覺化呼吸練習
+    if label in ["憤怒", "悲傷", "厭惡"]:
+        st.divider()
+        st.subheader("🌈 小精靈陪你做個『冷靜氣球』練習")
+        st.write("請跟著下方的氣球，一起慢慢呼吸三次。")
+        
+        # 嵌入剛才定義的 HTML/JS 組件
+        components.html(balloon_interactive_html, height=450)
+        
+        # 增加一個完成按鈕，強化正向回饋
+        if st.button("我做完了三次呼吸，感覺好一點了！"):
+            st.balloons()
+            st.success("你真棒！成功找回平靜的能量囉！")
