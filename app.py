@@ -1,76 +1,55 @@
 import streamlit as st
 from transformers import pipeline
+from streamlit_mic_recorder import mic_recorder
+import whisper
+import os
 
 # 1. 網頁基礎設定
-st.set_page_config(page_title="情緒小精靈", page_icon="🌈")
-st.title("🌈 你的專屬情緒小精靈")
+st.set_page_config(page_title="情緒小精靈-語音版", page_icon="🌈")
+st.title("🌈 你的專屬情緒小精靈 (語音版)")
 
-# 2. 定義標籤翻譯字典 (修正你看到的 LABEL_0 問題)
-# 根據 Johnson8187 模型的設定進行對應
-label_map = {
-    "LABEL_0": "平淡",
-    "LABEL_1": "關切",
-    "LABEL_2": "開心",
-    "LABEL_3": "憤怒",
-    "LABEL_4": "悲傷",
-    "LABEL_5": "疑問",
-    "LABEL_6": "驚奇",
-    "LABEL_7": "厭惡"
-}
-
-# 情緒對應的圖示與建議
-emotion_advice = {
-    "開心": {"emoji": "🥳", "color": "green", "text": "太棒了！分享這份喜悅給老師吧！"},
-    "憤怒": {"emoji": "😤", "color": "red", "text": "小精靈感覺到你在生氣，我們一起深呼吸三次好嗎？"},
-    "悲傷": {"emoji": "🥺", "color": "blue", "text": "想哭也沒關係，小精靈會在這裡陪著你。"},
-    "平淡": {"emoji": "😐", "color": "gray", "text": "平平穩穩的一天也很好喔！"},
-    "驚奇": {"emoji": "😮", "color": "orange", "text": "哇！發生了什麼意想不到的事嗎？"}
-}
-
-# 3. 載入 AI 模型
+# 2. 載入模型 (增加 Whisper 語音辨識)
 @st.cache_resource
-def load_model():
-    return pipeline("text-classification", model="Johnson8187/Chinese-Emotion-Small")
+def load_models():
+    # 情緒辨識模型
+    emo_clf = pipeline("text-classification", model="Johnson8187/Chinese-Emotion-Small")
+    # 語音轉文字模型 (選用 base 等級，兼顧速度與準確度)
+    stt_model = whisper.load_model("base")
+    return emo_clf, stt_model
 
-classifier = load_model()
+emo_classifier, stt_model = load_models()
 
-# 4. 互動介面
-st.write("### 嘿！今天在學校過得好嗎？")
-text = st.text_input("在這裡寫下（或說出）你的心情：", placeholder="例如：今天體育課很好玩...")
+# 標籤翻譯字典
+label_map = {"LABEL_0": "平淡", "LABEL_1": "關切", "LABEL_2": "開心", "LABEL_3": "憤怒", 
+             "LABEL_4": "悲傷", "LABEL_5": "疑問", "LABEL_6": "驚奇", "LABEL_7": "厭惡"}
 
-if text:
-    # AI 辨識
-    prediction = classifier(text)[0]
-    raw_label = prediction['label']
-    conf_score = prediction['score']
+# 3. 語音輸入介面
+st.write("### 點擊麥克風，對小精靈說說話吧！")
+audio = mic_recorder(start_prompt="🎤 開始錄音", stop_prompt="🛑 說完了", key='recorder')
+
+user_text = ""
+
+# 當有錄音資料時進行處理
+if audio:
+    with st.spinner('小精靈正在努力聽你說話...'):
+        # 將錄音資料存為暫存檔
+        with open("temp_audio.wav", "wb") as f:
+            f.write(audio['bytes'])
+        
+        # 使用 Whisper 轉文字
+        result = stt_model.transcribe("temp_audio.wav", fp16=False)
+        user_text = result['text']
+        st.success(f"小精靈聽到了：{user_text}")
+
+# 4. 保留文字輸入作為備案 (雙軌輸入)
+manual_text = st.text_input("或是你想用打字的也可以：", value=user_text)
+final_text = manual_text if manual_text else user_text
+
+# 5. 情緒分析與回饋 (沿用之前的邏輯)
+if final_text:
+    prediction = emo_classifier(final_text)[0]
+    chinese_label = label_map.get(prediction['label'], "未知")
     
-    # 轉換成中文名稱
-    chinese_label = label_map.get(raw_label, "神秘情緒")
-    
-    # 取得顯示資訊
-    info = emotion_advice.get(chinese_label, {"emoji": "🤖", "color": "black", "text": "小精靈正在努力理解你的感覺..."})
-    
-    # 5. 視覺化呈現
     st.divider()
-    
-    # 顯示大大的圖示
-    st.markdown(f"<h1 style='font-size: 100px; text-align: center;'>{info['emoji']}</h1>", unsafe_allow_html=True)
-    
-    # 顯示辨識結果
-    st.subheader(f"小精靈覺得你現在：**{chinese_label}**")
-    st.info(info['text'])
-    
-    # 6. 加入簡單的語音合成 (TTS) - 廖老師會喜歡這個教育輔助功能
-    # 利用 HTML5 的語音 API，不佔伺服器資源
-    tts_script = f"""
-    <script>
-        var msg = new SpeechSynthesisUtterance();
-        msg.text = "小精靈覺得你現在感覺{chinese_label}。{info['text']}";
-        msg.lang = 'zh-TW';
-        window.speechSynthesis.speak(msg);
-    </script>
-    """
-    st.components.v1.html(tts_script, height=0)
-
-st.divider()
-st.caption("本系統為中央大學網學所研究原型，僅供教學實踐使用。")
+    st.markdown(f"<h1 style='text-align: center;'>🥳</h1>", unsafe_allow_html=True) # 這裡可依標籤換圖
+    st.subheader(f"小精靈覺得你現在：{chinese_label}")
