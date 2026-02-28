@@ -79,13 +79,7 @@ with c3:
 st.divider()
 
 st.markdown("### 🎤 第二步：對小精靈說說心情")
-st.caption("錄音提示：點擊錄音後開始說話，說完請**務必點擊紅色按鈕停止**，避免收錄環境雜音。")
-
-audio = mic_recorder(
-    start_prompt="🎤 點我開始錄音", 
-    stop_prompt="🛑 說完了（錄完點我）", 
-    key='recorder'
-)
+audio = mic_recorder(start_prompt="🎤 點我開始錄音", stop_prompt="🛑 說完了", key='recorder')
 
 user_text = ""
 if audio:
@@ -110,13 +104,13 @@ student_self_label = st.radio(
 # --- 5. 數據處理與回饋 ---
 if st.button("🚀 點我送出給小精靈"):
     if final_text:
-        # AI 辨識
         prediction = emo_classifier(final_text)[0]
         ai_label = label_map.get(prediction['label'], "平淡")
         
         # 存檔邏輯
         file_path = "student_logs.csv"
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # 統一使用 7 個欄位
         new_data = pd.DataFrame([[now, grade, classroom, student_name, final_text, student_self_label, ai_label]], 
                                 columns=["時間", "年級", "班級", "姓名", "內容", "自評情緒", "AI辨識情緒"])
         
@@ -128,32 +122,38 @@ if st.button("🚀 點我送出給小精靈"):
         st.divider()
         st.subheader(f"分析結果：{ai_label}")
         
-        # 根據 AI 辨識結果給予回饋
         if ai_label in ["憤怒", "悲傷", "厭惡"]:
             st.info("🌈 小精靈感覺到你不開心，我們來練習深呼吸吧！")
             components.html(balloon_interactive_html, height=400)
         else:
             st.balloons()
-            st.chat_message("assistant", avatar="🌈").write(f"謝謝 {student_name} 的分享！我已經把你的心情記在我的秘密筆記本裡了！")
+            st.success(f"謝謝 {student_name} 的分享！我已經記下來囉！")
     else:
-        st.warning("請先對我說說話或打字喔！")
+        st.warning("請先輸入內容喔！")
 
-# --- 6. 簡潔管理後台 ---
+# --- 6. 管理後台 (修正後的安全讀取版) ---
 with st.sidebar:
-    st.title("⚙️ 研究者管理區")
-    if st.checkbox("進入數據模式"):
-        if os.path.exists("student_logs.csv"):
-            df = pd.read_csv("student_logs.csv")
-            st.write("### 數據對比表")
-            st.dataframe(df)
-            
-            csv = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📥 下載研究數據", csv, "research_data.csv", "text/csv")
-            
-            # 將重置功能收在最底部且需要確認
-            st.divider()
-            if st.button("🔥 格式重置 (僅在紅字報錯時使用)"):
-                os.remove("student_logs.csv")
-                st.rerun()
+    st.title("⚙️ 研究管理")
+    if st.checkbox("開啟數據模式"):
+        file_path = "student_logs.csv"
+        if os.path.exists(file_path):
+            try:
+                # 嘗試讀取
+                df = pd.read_csv(file_path)
+                st.write("### 數據報表")
+                st.dataframe(df)
+                csv = df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button("📥 下載數據", csv, "data.csv", "text/csv")
+            except Exception as e:
+                st.error("⚠️ 偵測到舊格式資料衝突，系統已自動為您重置檔案。")
+                os.remove(file_path) # 直接刪除有問題的舊檔案
+                st.info("請重新整理網頁，新錄入的資料將會正常顯示。")
         else:
-            st.info("目前尚無數據紀錄。")
+            st.info("目前尚無資料。")
+
+    st.divider()
+    # 隱藏的強制重置按鈕
+    if st.button("🚨 強制重置資料庫"):
+        if os.path.exists("student_logs.csv"):
+            os.remove("student_logs.csv")
+            st.rerun()
