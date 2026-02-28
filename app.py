@@ -187,14 +187,6 @@ if final_text:
     # 2. 顯示對話框
     st.chat_message("assistant", avatar="🌈").write(f"**小精靈說：** {message}")
     
-    # 3. 互動任務 (當情緒不穩定時)
-    if label in ["憤怒", "悲傷", "厭惡"]:
-        with st.expander("🌟 點開這裡，小精靈陪你做個練習"):
-            st.write("1. 請先閉上眼睛。")
-            st.write("2. 慢慢吸氣... 1, 2, 3...")
-            st.write("3. 慢慢吐氣... 1, 2, 3...")
-            if st.button("我做完了，感覺好一點了"):
-                st.success("你真棒！自我覺察第一步完成！")
 # --- 在情緒分析與視覺回饋之後 ---
 # 假設你之前的 label 翻譯字典與回饋字典都還在
 
