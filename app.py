@@ -8,7 +8,7 @@ from streamlit_mic_recorder import mic_recorder
 import whisper
 import random
 
-# --- 1. 定義麥克風感測氣球 HTML/JS ---
+# --- 1. 定義氣球動畫組件 ---
 balloon_interactive_html = """
 <div style="text-align: center; font-family: sans-serif;">
     <canvas id="balloonCanvas" width="300" height="250" style="border-radius: 15px; background-color: #f0f2f6;"></canvas>
@@ -51,20 +51,8 @@ balloon_interactive_html = """
 </script>
 """
 
-# --- 2. 資料紀錄函數 ---
-def save_data(name, stu_class, user_input, emotion_label):
-    file_path = "student_logs.csv"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_data = pd.DataFrame([[now, stu_class, name, user_input, emotion_label]], 
-                            columns=["時間", "班級", "姓名", "學生輸入", "辨識情緒"])
-    if os.path.exists(file_path):
-        new_data.to_csv(file_path, mode='a', header=False, index=False, encoding='utf-8-sig')
-    else:
-        new_data.to_csv(file_path, mode='w', header=True, index=False, encoding='utf-8-sig')
-
-# --- 3. 網頁設定與模型載入 ---
-st.set_page_config(page_title="情緒小精靈-研究版", page_icon="🌈")
-st.title("🌈 你的專屬情緒小精靈")
+# --- 2. 網頁設定與模型載入 ---
+st.set_page_config(page_title="情緒小精靈-研究正式版", page_icon="🌈")
 
 @st.cache_resource
 def load_models():
@@ -76,28 +64,30 @@ emo_classifier, stt_model = load_models()
 label_map = {"LABEL_0": "平淡", "LABEL_1": "關切", "LABEL_2": "開心", "LABEL_3": "憤怒", 
              "LABEL_4": "悲傷", "LABEL_5": "疑問", "LABEL_6": "驚奇", "LABEL_7": "厭惡"}
 
-feedback_dict = {
-    "開心": {"msg": ["哇！你的好心情像陽光一樣閃亮！", "太好了，小精靈也想跟你一起跳舞！"], "action": "balloons"},
-    "憤怒": {"msg": ["小精靈感覺到你心裡火辣辣的。", "呼～我們要不要一起把氣球吹大？"], "action": "warning"},
-    "悲傷": {"msg": ["想哭也沒關係，小精靈會陪著你。", "抱一個！你今天辛苦了。"], "action": "info"},
-    "平淡": {"msg": ["平穩的一天也是很珍貴的喔。", "心情靜靜的，感覺很舒服。"], "action": "snow"}
-}
+# --- 3. 介面開始 ---
+st.title("🌈 你的專屬情緒小精靈")
 
-# --- 4. 學生基本資料輸入區 ---
-st.markdown("### 📝 第一步：請填寫基本資料")
-col1, col2 = st.columns(2)
-with col1:
-    student_class = st.text_input("你的班級：", placeholder="例如：三年一班")
-with col2:
-    student_name = st.text_input("你的名字：", placeholder="例如：小明")
+st.markdown("### 📝 第一步：請確認個人資料")
+c1, c2, c3 = st.columns(3)
+with c1:
+    grade = st.selectbox("年級", [f"{i}年級" for i in range(1, 7)])
+with c2:
+    classroom = st.selectbox("班級", [f"{i}班" for i in range(1, 7)])
+with c3:
+    student_name = st.text_input("名字", placeholder="小明")
 
 st.divider()
 
-# --- 5. 互動介面 ---
 st.markdown("### 🎤 第二步：對小精靈說說心情")
-audio = mic_recorder(start_prompt="🎤 點我開始錄音", stop_prompt="🛑 說完了", key='recorder')
-user_text = ""
+st.caption("錄音提示：點擊錄音後開始說話，說完請**務必點擊紅色按鈕停止**，避免收錄環境雜音。")
 
+audio = mic_recorder(
+    start_prompt="🎤 點我開始錄音", 
+    stop_prompt="🛑 說完了（錄完點我）", 
+    key='recorder'
+)
+
+user_text = ""
 if audio:
     with st.spinner('小精靈正在努力聽你說話...'):
         with open("temp_audio.wav", "wb") as f:
@@ -106,63 +96,64 @@ if audio:
         user_text = result['text']
         st.success(f"小精靈聽到了：{user_text}")
 
-manual_text = st.text_input("或是用打字的也可以：", value=user_text)
+manual_text = st.text_input("或是你想用打字的也可以：", value=user_text)
 final_text = manual_text if manual_text else user_text
 
-# --- 6. 核心邏輯：辨識 + 紀錄 + 回饋 ---
-if final_text:
-    prediction = emo_classifier(final_text)[0]
-    label = label_map.get(prediction['label'], "平淡")
-    
-    # 存檔
-    save_data(student_name if student_name else "未填寫", 
-              student_class if student_class else "未填寫", 
-              final_text, label)
-    
-    fb = feedback_dict.get(label, {"msg": ["謝謝你分享你的感覺。"], "action": None})
-    st.divider()
-    
-    if fb["action"] == "balloons": st.balloons()
-    elif fb["action"] == "snow": st.snow()
-    
-    st.subheader(f"小精靈覺得你現在：{label}")
-    st.chat_message("assistant", avatar="🌈").write(random.choice(fb["msg"]))
-    
-    if label in ["憤怒", "悲傷", "厭惡"]:
-        st.info("🌟 小精靈陪你做個『氣球吹氣』練習")
-        components.html(balloon_interactive_html, height=400)
-        if st.button("我練習完了，感覺好多了！"):
+# --- 4. 學生自評情緒 ---
+st.markdown("### 🧐 第三步：你覺得你現在的心情是？")
+student_self_label = st.radio(
+    "請選擇最接近的心情：",
+    ["開心", "平淡", "難過", "生氣", "害怕", "驚奇"],
+    horizontal=True
+)
+
+# --- 5. 數據處理與回饋 ---
+if st.button("🚀 點我送出給小精靈"):
+    if final_text:
+        # AI 辨識
+        prediction = emo_classifier(final_text)[0]
+        ai_label = label_map.get(prediction['label'], "平淡")
+        
+        # 存檔邏輯
+        file_path = "student_logs.csv"
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        new_data = pd.DataFrame([[now, grade, classroom, student_name, final_text, student_self_label, ai_label]], 
+                                columns=["時間", "年級", "班級", "姓名", "內容", "自評情緒", "AI辨識情緒"])
+        
+        if os.path.exists(file_path):
+            new_data.to_csv(file_path, mode='a', header=False, index=False, encoding='utf-8-sig')
+        else:
+            new_data.to_csv(file_path, mode='w', header=True, index=False, encoding='utf-8-sig')
+            
+        st.divider()
+        st.subheader(f"分析結果：{ai_label}")
+        
+        # 根據 AI 辨識結果給予回饋
+        if ai_label in ["憤怒", "悲傷", "厭惡"]:
+            st.info("🌈 小精靈感覺到你不開心，我們來練習深呼吸吧！")
+            components.html(balloon_interactive_html, height=400)
+        else:
             st.balloons()
-            st.success("你真棒！成功找回平靜的能量囉！")
+            st.chat_message("assistant", avatar="🌈").write(f"謝謝 {student_name} 的分享！我已經把你的心情記在我的秘密筆記本裡了！")
+    else:
+        st.warning("請先對我說說話或打字喔！")
 
-# --- 7. 老師管理區塊 (含重置按鈕) ---
+# --- 6. 簡潔管理後台 ---
 with st.sidebar:
-    st.title("📊 研究數據管理後台")
-    
-    # 【救急按鈕】如果看到紅字 ParserError，點這顆
-    if st.button("🔥 重置資料庫 (清除紅字報錯)"):
+    st.title("⚙️ 研究者管理區")
+    if st.checkbox("進入數據模式"):
         if os.path.exists("student_logs.csv"):
-            os.remove("student_logs.csv")
-            st.success("舊檔案已清除！")
-            st.rerun()
+            df = pd.read_csv("student_logs.csv")
+            st.write("### 數據對比表")
+            st.dataframe(df)
+            
+            csv = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("📥 下載研究數據", csv, "research_data.csv", "text/csv")
+            
+            # 將重置功能收在最底部且需要確認
+            st.divider()
+            if st.button("🔥 格式重置 (僅在紅字報錯時使用)"):
+                os.remove("student_logs.csv")
+                st.rerun()
         else:
-            st.info("目前尚無舊檔案。")
-
-    st.divider()
-
-    if st.checkbox("顯示學生紀錄清單"):
-        if os.path.exists("student_logs.csv"):
-            try:
-                df = pd.read_csv("student_logs.csv")
-                st.dataframe(df)
-                csv_data = df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label="📥 下載報表 (CSV)", 
-                    data=csv_data, 
-                    file_name=f"情緒紀錄_{datetime.now().strftime('%m%d')}.csv",
-                    mime="text/csv"
-                )
-            except:
-                st.error("資料格式衝突！請點擊上方的『重置資料庫』按鈕。")
-        else:
-            st.info("目前尚無資料紀錄。")
+            st.info("目前尚無數據紀錄。")
