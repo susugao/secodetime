@@ -7,7 +7,7 @@ from transformers import pipeline
 from streamlit_mic_recorder import mic_recorder
 import whisper
 
-# --- 1. 呼吸氣球 HTML (慢速療癒導引版) ---
+# --- 1. 呼吸氣球 HTML (長吐短吸修正版) ---
 balloon_logic_html = """
 <div style="text-align: center; font-family: sans-serif; background: #ffffff; padding: 20px; border-radius: 20px;">
     <canvas id="balloonCanvas" width="300" height="400"></canvas>
@@ -22,12 +22,9 @@ balloon_logic_html = """
     var radius = 50;           
     var targetRadius = 50;     
     var mode = 'idle';         
-    var smoothedVolume = 0;
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // 1. 繪製動態虛線圈 (目標導引)
         ctx.beginPath(); 
         ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
         ctx.setLineDash([5, 10]); 
@@ -35,19 +32,14 @@ balloon_logic_html = """
         ctx.lineWidth = 3;
         ctx.stroke(); 
         ctx.setLineDash([]);
-        
-        // 2. 氣球
         ctx.beginPath(); 
         ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
         ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b'; 
         ctx.fill();
-        
-        // 3. 繩子
         ctx.beginPath(); 
         ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
         ctx.lineTo(canvas.width/2, canvas.height/2 + radius + 40);
         ctx.strokeStyle = '#666'; ctx.lineWidth = 2; ctx.stroke();
-        
         requestAnimationFrame(draw);
     }
     draw();
@@ -74,32 +66,15 @@ balloon_logic_html = """
             if (mode === 'blowing') {
                 document.getElementById('status').innerText = "💨 慢慢吐氣：跟著虛線「呼～」";
                 document.getElementById('status').style.color = "#ff4b4b";
-                
-                // 【調慢點】虛線慢慢變大 (0.4 -> 0.2)
-                if (targetRadius < 130) targetRadius += 0.2;
-                
-                // 氣球長大邏輯
-                if (avg > 30) {
-                    radius += 0.6; 
-                } else {
-                    radius -= 0.05; // 沒吹時幾乎不動，讓孩子不壓力
-                }
-
-                // 判斷是否轉向吸氣
-                if (radius >= targetRadius && targetRadius >= 125) {
-                    mode = 'inhaling';
-                }
+                if (targetRadius < 130) targetRadius += 0.2; // 慢速吐氣
+                if (avg > 30) { radius += 0.6; } else { radius -= 0.05; }
+                if (radius >= targetRadius && targetRadius >= 125) { mode = 'inhaling'; }
             } else if (mode === 'inhaling') {
-                document.getElementById('status').innerText = "🌈 慢慢吸氣：氣球變小了...";
+                document.getElementById('status').innerText = "🌈 輕鬆吸氣：準備下一次...";
                 document.getElementById('status').style.color = "#4dabf7";
-                
-                // 【調慢點】虛線與氣球緩緩回縮 (0.6 -> 0.3)
-                if (targetRadius > 50) targetRadius -= 0.3;
-                if (radius > 50) radius -= 0.3;
-
-                if (radius <= 55 && targetRadius <= 55) {
-                    mode = 'blowing'; 
-                }
+                if (targetRadius > 50) targetRadius -= 0.8; // 快速吸氣
+                if (radius > 50) radius -= 0.8; // 快速吸氣
+                if (radius <= 55 && targetRadius <= 55) { mode = 'blowing'; }
             }
             radius = Math.max(40, Math.min(radius, 150));
             requestAnimationFrame(process);
