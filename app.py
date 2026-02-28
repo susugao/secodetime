@@ -7,9 +7,9 @@ from transformers import pipeline
 from streamlit_mic_recorder import mic_recorder
 import whisper
 
-# --- 1. 呼吸氣球 HTML (動態虛線導引版) ---
+# --- 1. 呼吸氣球 HTML (慢速療癒導引版) ---
 balloon_logic_html = """
-<div style="text-align: center; font-family: sans-serif; background: #ffffff; padding: 20px; border-radius: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+<div style="text-align: center; font-family: sans-serif; background: #ffffff; padding: 20px; border-radius: 20px;">
     <canvas id="balloonCanvas" width="300" height="400"></canvas>
     <div id="status" style="font-size: 22px; font-weight: bold; color: #ff4b4b; margin: 10px 0;">準備好練習呼吸了嗎?</div>
     <div id="debug" style="font-size: 12px; color: #ccc;">環境音量: 0</div>
@@ -19,30 +19,30 @@ balloon_logic_html = """
 <script>
     var canvas = document.getElementById('balloonCanvas');
     var ctx = canvas.getContext('2d');
-    var radius = 50;           // 氣球半徑
-    var targetRadius = 50;     // 虛線半徑 (會動態變化)
-    var mode = 'idle';         // idle, blowing, inhaling
+    var radius = 50;           
+    var targetRadius = 50;     
+    var mode = 'idle';         
     var smoothedVolume = 0;
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 1. 繪製動態虛線目標圈 (紅色)
+        // 1. 繪製動態虛線圈 (目標導引)
         ctx.beginPath(); 
         ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
-        ctx.setLineDash([5, 8]); 
+        ctx.setLineDash([5, 10]); 
         ctx.strokeStyle = '#ff4b4b'; 
         ctx.lineWidth = 3;
         ctx.stroke(); 
         ctx.setLineDash([]);
         
-        // 2. 繪製氣球本體
+        // 2. 氣球
         ctx.beginPath(); 
         ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
         ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b'; 
         ctx.fill();
         
-        // 3. 繪製繩子
+        // 3. 繩子
         ctx.beginPath(); 
         ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
         ctx.lineTo(canvas.width/2, canvas.height/2 + radius + 40);
@@ -72,33 +72,33 @@ balloon_logic_html = """
             document.getElementById('debug').innerText = "環境音量: " + Math.floor(avg);
 
             if (mode === 'blowing') {
-                document.getElementById('status').innerText = "💨 慢慢吐氣：跟著虛線變大...";
+                document.getElementById('status').innerText = "💨 慢慢吐氣：跟著虛線「呼～」";
                 document.getElementById('status').style.color = "#ff4b4b";
                 
-                // 虛線由小變大 (目標設定在 130)
-                if (targetRadius < 130) targetRadius += 0.4;
+                // 【調慢點】虛線慢慢變大 (0.4 -> 0.2)
+                if (targetRadius < 130) targetRadius += 0.2;
                 
-                // 氣球根據音量變大
-                if (avg > 35) {
-                    radius += 0.8; 
+                // 氣球長大邏輯
+                if (avg > 30) {
+                    radius += 0.6; 
                 } else {
-                    radius -= 0.1;
+                    radius -= 0.05; // 沒吹時幾乎不動，讓孩子不壓力
                 }
 
-                // 當氣球追上虛線且虛線已擴張
-                if (radius >= targetRadius && targetRadius >= 120) {
+                // 判斷是否轉向吸氣
+                if (radius >= targetRadius && targetRadius >= 125) {
                     mode = 'inhaling';
                 }
             } else if (mode === 'inhaling') {
-                document.getElementById('status').innerText = "🌈 慢慢吸氣：跟著氣球縮小...";
+                document.getElementById('status').innerText = "🌈 慢慢吸氣：氣球變小了...";
                 document.getElementById('status').style.color = "#4dabf7";
                 
-                // 虛線與氣球同時慢慢縮回
-                if (targetRadius > 50) targetRadius -= 0.6;
-                if (radius > 50) radius -= 0.6;
+                // 【調慢點】虛線與氣球緩緩回縮 (0.6 -> 0.3)
+                if (targetRadius > 50) targetRadius -= 0.3;
+                if (radius > 50) radius -= 0.3;
 
                 if (radius <= 55 && targetRadius <= 55) {
-                    mode = 'blowing'; // 重新循環
+                    mode = 'blowing'; 
                 }
             }
             radius = Math.max(40, Math.min(radius, 150));
