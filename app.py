@@ -8,7 +8,7 @@ from streamlit_mic_recorder import mic_recorder
 import whisper
 import random
 
-# --- 1. 定義麥克風感測氣球 HTML/JS (用於負面情緒調節) ---
+# --- 1. 定義麥克風感測氣球 HTML/JS ---
 balloon_interactive_html = """
 <div style="text-align: center; font-family: sans-serif;">
     <canvas id="balloonCanvas" width="300" height="250" style="border-radius: 15px; background-color: #f0f2f6;"></canvas>
@@ -26,7 +26,7 @@ balloon_interactive_html = """
         ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, r, 0, Math.PI * 2);
         ctx.fillStyle = '#ff6b6b'; ctx.fill();
         ctx.beginPath(); ctx.moveTo(canvas.width/2, canvas.height/2 + r);
-        ctx.lineTo(canvas.width/2, canvas.height/2 + r + 30); ctx.stroke();
+        ctx.lineTo(canvas.width/2, canvas.height/2 + r + 30); ctx.strokeStyle = '#555'; ctx.stroke();
     }
     draw(balloonRadius);
     startBtn.onclick = function() {
@@ -51,11 +51,10 @@ balloon_interactive_html = """
 </script>
 """
 
-# --- 2. 資料紀錄函數 (包含姓名與班級) ---
+# --- 2. 資料紀錄函數 ---
 def save_data(name, stu_class, user_input, emotion_label):
     file_path = "student_logs.csv"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # 建立包含五個欄位的資料表
     new_data = pd.DataFrame([[now, stu_class, name, user_input, emotion_label]], 
                             columns=["時間", "班級", "姓名", "學生輸入", "辨識情緒"])
     if os.path.exists(file_path):
@@ -63,7 +62,7 @@ def save_data(name, stu_class, user_input, emotion_label):
     else:
         new_data.to_csv(file_path, mode='w', header=True, index=False, encoding='utf-8-sig')
 
-# --- 3. 網頁基礎設定與模型載入 ---
+# --- 3. 網頁設定與模型載入 ---
 st.set_page_config(page_title="情緒小精靈-研究版", page_icon="🌈")
 st.title("🌈 你的專屬情緒小精靈")
 
@@ -79,7 +78,7 @@ label_map = {"LABEL_0": "平淡", "LABEL_1": "關切", "LABEL_2": "開心", "LAB
 
 feedback_dict = {
     "開心": {"msg": ["哇！你的好心情像陽光一樣閃亮！", "太好了，小精靈也想跟你一起跳舞！"], "action": "balloons"},
-    "憤怒": {"msg": ["小精靈感覺到你心裡火辣辣的。", "呼～我們要不要一起把氣球吹大，把氣吐出來？"], "action": "warning"},
+    "憤怒": {"msg": ["小精靈感覺到你心裡火辣辣的。", "呼～我們要不要一起把氣球吹大？"], "action": "warning"},
     "悲傷": {"msg": ["想哭也沒關係，小精靈會陪著你。", "抱一個！你今天辛苦了。"], "action": "info"},
     "平淡": {"msg": ["平穩的一天也是很珍貴的喔。", "心情靜靜的，感覺很舒服。"], "action": "snow"}
 }
@@ -94,7 +93,7 @@ with col2:
 
 st.divider()
 
-# --- 5. 互動介面 (語音/文字) ---
+# --- 5. 互動介面 ---
 st.markdown("### 🎤 第二步：對小精靈說說心情")
 audio = mic_recorder(start_prompt="🎤 點我開始錄音", stop_prompt="🛑 說完了", key='recorder')
 user_text = ""
@@ -112,52 +111,58 @@ final_text = manual_text if manual_text else user_text
 
 # --- 6. 核心邏輯：辨識 + 紀錄 + 回饋 ---
 if final_text:
-    # A. 辨識
     prediction = emo_classifier(final_text)[0]
     label = label_map.get(prediction['label'], "平淡")
     
-    # B. 存檔 (將姓名與班級一起存入)
+    # 存檔
     save_data(student_name if student_name else "未填寫", 
               student_class if student_class else "未填寫", 
               final_text, label)
     
-    # C. 視覺與對話回饋
     fb = feedback_dict.get(label, {"msg": ["謝謝你分享你的感覺。"], "action": None})
     st.divider()
     
-    # 噴發特效
     if fb["action"] == "balloons": st.balloons()
     elif fb["action"] == "snow": st.snow()
     
-    # 顯示結果
     st.subheader(f"小精靈覺得你現在：{label}")
     st.chat_message("assistant", avatar="🌈").write(random.choice(fb["msg"]))
     
-    # D. 負面情緒介入練習
     if label in ["憤怒", "悲傷", "厭惡"]:
-        st.info("🌟 感覺有點不舒服嗎？小精靈陪你做個『氣球吹氣』練習")
+        st.info("🌟 小精靈陪你做個『氣球吹氣』練習")
         components.html(balloon_interactive_html, height=400)
         if st.button("我練習完了，感覺好多了！"):
             st.balloons()
             st.success("你真棒！成功找回平靜的能量囉！")
 
-# --- 7. 老師管理區塊 (側邊欄) ---
+# --- 7. 老師管理區塊 (含重置按鈕) ---
 with st.sidebar:
     st.title("📊 研究數據管理後台")
-    st.caption("僅供廖長彥教授與研究者使用")
-    if st.checkbox("顯示學生紀錄清單"):
-        # 暫時加入這行來刪除舊格式檔案，跑通一次後就可以把這行刪掉
-if os.path.exists("student_logs.csv"):
-    os.remove("student_logs.csv")
+    
+    # 【救急按鈕】如果看到紅字 ParserError，點這顆
+    if st.button("🔥 重置資料庫 (清除紅字報錯)"):
         if os.path.exists("student_logs.csv"):
-            df = pd.read_csv("student_logs.csv")
-            st.dataframe(df)
-            csv_data = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="📥 下載完整資料報表 (CSV)", 
-                data=csv_data, 
-                file_name=f"情緒紀錄_{datetime.now().strftime('%m%d')}.csv",
-                mime="text/csv"
-            )
+            os.remove("student_logs.csv")
+            st.success("舊檔案已清除！")
+            st.rerun()
+        else:
+            st.info("目前尚無舊檔案。")
+
+    st.divider()
+
+    if st.checkbox("顯示學生紀錄清單"):
+        if os.path.exists("student_logs.csv"):
+            try:
+                df = pd.read_csv("student_logs.csv")
+                st.dataframe(df)
+                csv_data = df.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📥 下載報表 (CSV)", 
+                    data=csv_data, 
+                    file_name=f"情緒紀錄_{datetime.now().strftime('%m%d')}.csv",
+                    mime="text/csv"
+                )
+            except:
+                st.error("資料格式衝突！請點擊上方的『重置資料庫』按鈕。")
         else:
             st.info("目前尚無資料紀錄。")
