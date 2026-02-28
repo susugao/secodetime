@@ -85,7 +85,7 @@ balloon_logic_html = """
                 let avgSpeech = speechEnergy / 25;
 
                 // 排除說話與背景音：吹氣能量需顯著高於低頻音
-                if (avgBlowing > 40 && avgBlowing > avgSpeech * 1.3) {
+                if (avgBlowing > 15 && avgBlowing > avgSpeech * 1.1){
                     smoothedVolume = smoothedVolume * 0.7 + avgBlowing * 0.3;
                 } else {
                     smoothedVolume = smoothedVolume * 0.8;
