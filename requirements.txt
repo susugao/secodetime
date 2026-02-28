@@ -3,3 +3,5 @@ transformers
 torch
 streamlit-mic-recorder
 openai-whisper
+st-gsheets-connection
+pandas
