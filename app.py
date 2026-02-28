@@ -8,13 +8,13 @@ from streamlit_mic_recorder import mic_recorder
 import whisper
 import random
 
-# --- 1. 呼吸氣球 HTML (修正全形符號與增強靈敏度) ---
+# --- 1. 呼吸氣球 HTML (防誤觸穩定版) ---
 balloon_logic_html = """
 <div style="text-align: center; font-family: sans-serif; background: #ffffff; padding: 10px; border-radius: 20px;">
     <canvas id="balloonCanvas" width="300" height="400"></canvas>
     <div id="status" style="font-size: 20px; font-weight: bold; color: #ff4b4b; margin: 10px 0;">準備好練習呼吸了嗎?</div>
-    <div id="debug" style="font-size: 12px; color: #ccc;">偵測數值: 0</div>
-    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #ff4b4b; color: white; border: none; border-radius: 50px; cursor: pointer;">🎤 開始深呼吸練習</button>
+    <div id="debug" style="font-size: 12px; color: #ccc;">環境音量: 0 (需超過 40 才會長大)</div>
+    <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #ff4b4b; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(255,75,75,0.3);">🎤 開始深呼吸練習</button>
 </div>
 
 <script>
@@ -27,24 +27,16 @@ balloon_logic_html = """
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.beginPath(); 
-        ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
-        ctx.setLineDash([5, 8]); 
-        ctx.strokeStyle = '#dddddd'; 
-        ctx.stroke(); 
-        ctx.setLineDash([]);
-        
-        ctx.beginPath(); 
-        ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
-        ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b'; 
-        ctx.fill();
-        
-        ctx.beginPath(); 
-        ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
+        // 繪製目標圈
+        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
+        ctx.setLineDash([5, 8]); ctx.strokeStyle = '#dddddd'; ctx.stroke(); ctx.setLineDash([]);
+        // 繪製氣球
+        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
+        ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b'; ctx.fill();
+        // 繪製繩子
+        ctx.beginPath(); ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
         ctx.lineTo(canvas.width/2, canvas.height/2 + radius + 50);
-        ctx.strokeStyle = '#666'; 
-        ctx.lineWidth = 3; 
-        ctx.stroke();
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 3; ctx.stroke();
         requestAnimationFrame(draw);
     }
     draw();
@@ -61,48 +53,46 @@ balloon_logic_html = """
 
             this.style.display = 'none';
             mode = 'blowing';
-            document.getElementById('status').innerText = "💨 吐氣：呼～～～";
+            document.getElementById('status').innerText = "💨 請用力吹氣：「呼～～」";
 
             function process() {
                 analyser.getByteFrequencyData(dataArray);
                 let sum = 0;
-                for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                let avg = sum / dataArray.length;
+                // 我們只取中高頻部分，進一步過濾低頻雜音
+                for(let i = 10; i < dataArray.length; i++) sum += dataArray[i];
+                let avg = sum / (dataArray.length - 10);
                 
-                document.getElementById('debug').innerText = "偵測數值: " + Math.floor(avg);
+                document.getElementById('debug').innerText = "環境音量: " + Math.floor(avg) + " (門檻: 40)";
 
-                // 超靈敏設定：只要有聲音(10)就視為在吹氣
-                if (avg > 10) {
-                    smoothedVolume = smoothedVolume * 0.4 + avg * 0.6;
-                } else {
-                    smoothedVolume = smoothedVolume * 0.8;
-                }
-
+                // 核心邏輯：音量必須超過 40 且處於吹氣模式
                 if (mode === 'blowing') {
-                    if (smoothedVolume > 12) {
-                        radius += 2.0; // 長大快一點
+                    if (avg > 40) {
+                        radius += 2.5; // 吹氣時長大
                     } else {
-                        radius -= 0.3;
+                        radius -= 0.5; // 沒吹時慢慢縮回
                     }
+                    
                     if (radius >= targetRadius) {
                         mode = 'inhaling';
-                        document.getElementById('status').innerText = "🌈 慢慢吸氣...";
+                        document.getElementById('status').innerText = "🌈 成功！現在請「慢慢吸氣」...";
                         document.getElementById('status').style.color = "#4dabf7";
                     }
                 } else if (mode === 'inhaling') {
-                    radius -= 0.5; // 吸氣自動縮小
-                    if (radius <= 55) {
+                    // 吸氣模式：固定節奏縮小，不受聲音影響
+                    radius -= 0.4;
+                    if (radius <= 50) {
                         mode = 'blowing';
-                        document.getElementById('status').innerText = "💨 再吐一次氣!";
+                        document.getElementById('status').innerText = "💨 吐氣：再來一次！";
                         document.getElementById('status').style.color = "#ff4b4b";
                     }
                 }
+
                 radius = Math.max(50, Math.min(radius, 145));
                 requestAnimationFrame(process);
             }
             process();
         } catch (err) {
-            document.getElementById('status').innerText = "❌ 麥克風權限被阻擋";
+            document.getElementById('status').innerText = "❌ 麥克風啟動失敗";
         }
     };
 </script>
