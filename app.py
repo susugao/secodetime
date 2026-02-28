@@ -207,3 +207,14 @@ if final_text:
         if st.button("我做完了三次呼吸，感覺好一點了！"):
             st.balloons()
             st.success("你真棒！成功找回平靜的能量囉！")
+if final_text:
+    # --- 原有區塊保留 ---
+    prediction = emo_classifier(final_text)[0]
+    label = label_map.get(prediction['label'], "平淡")
+    
+    # --- 新增這行：觸發儲存 ---
+    save_data(final_text, label) 
+    
+    # --- 以下原有的視覺呈現區塊全部保留 ---
+    st.divider()
+    # (顯示大圖示、顯示文字回饋、語音合成...等內容)
