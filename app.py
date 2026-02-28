@@ -13,7 +13,7 @@ balloon_logic_html = """
 <div style="text-align: center; font-family: sans-serif; background: #ffffff; padding: 10px; border-radius: 20px;">
     <canvas id="balloonCanvas" width="300" height="400"></canvas>
     <div id="status" style="font-size: 20px; font-weight: bold; color: #ff4b4b; margin: 10px 0;">準備好練習呼吸了嗎?</div>
-    <div id="debug" style="font-size: 12px; color: #ccc;">環境音量: 0 (需超過 80 才會長大)</div>
+    <div id="debug" style="font-size: 12px; color: #ccc;">環境音量: 0 (需超過 70 才會長大)</div>
     <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #ff4b4b; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(255,75,75,0.3);">🎤 開始深呼吸練習</button>
 </div>
 
@@ -62,11 +62,11 @@ balloon_logic_html = """
                 for(let i = 10; i < dataArray.length; i++) sum += dataArray[i];
                 let avg = sum / (dataArray.length - 10);
                 
-                document.getElementById('debug').innerText = "環境音量: " + Math.floor(avg) + " (門檻: 80)";
+                document.getElementById('debug').innerText = "環境音量: " + Math.floor(avg) + " (門檻: 70)";
 
                 // 核心邏輯：音量必須超過 40 且處於吹氣模式
                 if (mode === 'blowing') {
-                    if (avg > 80) {
+                    if (avg > 70) {
                         radius += 2.5; // 吹氣時長大
                     } else {
                         radius -= 0.5; // 沒吹時慢慢縮回
