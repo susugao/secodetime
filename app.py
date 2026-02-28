@@ -1,76 +1,94 @@
-# --- 升級版：麥克風感測氣球 HTML/JS ---
+import streamlit as st
+import streamlit.components.v1 as components
+
+# --- 1. 定義 HTML/JS 氣球動畫組件 ---
+# 這段代碼會建立一個畫布，並用 JavaScript 控制氣球放大縮小
 balloon_interactive_html = """
 <div style="text-align: center; font-family: sans-serif;">
-    <canvas id="balloonCanvas" width="300" height="250" style="border-radius: 15px; background-color: #f0f2f6;"></canvas>
-    <div id="status" style="margin-top: 10px; font-weight: bold; color: #ff4b4b;">點擊下方按鈕開啟感應</div>
-    <button id="startMic" style="padding: 10px 20px; background-color: #ff4b4b; color: white; border: none; border-radius: 5px; cursor: pointer;">🎤 開始練習 (請對著麥克風吹氣)</button>
-    <p id="instruction" style="font-size: 16px; color: #555; margin-top: 10px;">吸氣時暫停，吐氣時用力對著麥克風「呼～」</p>
+    <canvas id="balloonCanvas" width="300" height="300" style="border: 1px solid #ddd; border-radius: 15px; background-color: #f9f9f9;"></canvas>
+    <div style="margin-top: 15px;">
+        <button id="breatheInBtn" style="padding: 10px 20px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">🌸 吸氣 (氣球變大)</button>
+        <button id="breatheOutBtn" style="padding: 10px 20px; font-size: 16px; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">🍃 吐氣 (氣球變小)</button>
+    </div>
+    <p id="instructionText" style="font-size: 18px; color: #555; margin-top: 10px;">跟著小精靈一起做深呼吸吧！</p>
 </div>
 
 <script>
     const canvas = document.getElementById('balloonCanvas');
     const ctx = canvas.getContext('2d');
-    const statusText = document.getElementById('status');
-    const startBtn = document.getElementById('startMic');
+    const breatheInBtn = document.getElementById('breatheInBtn');
+    const breatheOutBtn = document.getElementById('breatheOutBtn');
+    const instructionText = document.getElementById('instructionText');
 
-    let balloonRadius = 50;
-    let audioContext, analyser, microphone, javascriptNode;
+    // 氣球初始狀態
+    let balloon = {
+        x: canvas.width / 2,
+        y: canvas.height / 2 + 30, // 稍微往下移，留出空間給結
+        radius: 40,
+        color: '#ff6b6b' // 溫暖的紅色
+    };
 
-    function draw(r) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // 畫氣球
+    // 繪製氣球的函數
+    function drawBalloon(r) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空畫布
+
+        // 繪製氣球主體
         ctx.beginPath();
-        ctx.arc(canvas.width/2, canvas.height/2, r, 0, Math.PI * 2);
-        ctx.fillStyle = '#ff6b6b';
+        ctx.arc(balloon.x, balloon.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = balloon.color;
         ctx.fill();
-        // 畫氣球線
-        ctx.moveTo(canvas.width/2, canvas.height/2 + r);
-        ctx.lineTo(canvas.width/2, canvas.height/2 + r + 20);
-        ctx.stroke();
+        ctx.closePath();
+
+        // 繪製氣球的結
+        ctx.beginPath();
+        ctx.moveTo(balloon.x, balloon.y + r);
+        ctx.lineTo(balloon.x - 10, balloon.y + r + 15);
+        ctx.lineTo(balloon.x + 10, balloon.y + r + 15);
+        ctx.fillStyle = balloon.color;
+        ctx.fill();
+        ctx.closePath();
     }
 
-    draw(balloonRadius);
+    // 初始繪製
+    drawBalloon(balloon.radius);
 
-    startBtn.onclick = function() {
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-            statusText.innerText = "🌟 感應中！請開始深呼吸...";
-            statusText.style.color = "#28a745";
-            startBtn.style.display = "none";
+    // --- 互動邏輯 ---
+    let targetRadius = 40;
+    const minRadius = 40;
+    const maxRadius = 100;
+    const animationSpeed = 2; // 調整動畫流暢度
 
-            audioContext = new AudioContext();
-            analyser = audioContext.createAnalyser();
-            microphone = audioContext.createMediaStreamSource(stream);
-            javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+    function animate() {
+        if (balloon.radius < targetRadius) {
+            balloon.radius += animationSpeed;
+            if (balloon.radius > targetRadius) balloon.radius = targetRadius;
+        } else if (balloon.radius > targetRadius) {
+            balloon.radius -= animationSpeed;
+            if (balloon.radius < targetRadius) balloon.radius = targetRadius;
+        }
 
-            analyser.smoothingTimeConstant = 0.8;
-            analyser.fftSize = 1024;
+        drawBalloon(balloon.radius);
 
-            microphone.connect(analyser);
-            analyser.connect(javascriptNode);
-            javascriptNode.connect(audioContext.destination);
+        if (balloon.radius !== targetRadius) {
+            requestAnimationFrame(animate);
+        }
+    }
 
-            javascriptNode.onaudioprocess = function() {
-                let array = new Uint8Array(analyser.frequencyBinCount);
-                analyser.getByteFrequencyData(array);
-                let values = 0;
-                for (let i = 0; i < array.length; i++) {
-                    values += array[i];
-                }
-                let average = values / array.length; // 取得音量平均值
+    // 點擊吸氣按鈕
+    breatheInBtn.addEventListener('click', () => {
+        targetRadius = maxRadius;
+        instructionText.innerText = "🌸 慢慢吸氣... 感覺小腹變大... (氣球也變大囉)";
+        instructionText.style.color = "#4CAF50";
+        animate();
+    });
 
-                // 核心邏輯：根據音量調整氣球大小
-                // 當平均音量大於 20 (代表有在吹氣)
-                if (average > 20) {
-                    if (balloonRadius < 110) balloonRadius += 1.5; // 吹氣時變大
-                } else {
-                    if (balloonRadius > 50) balloonRadius -= 0.5;  // 沒吹氣時慢慢縮小
-                }
-                draw(balloonRadius);
-            };
-        }).catch(function(err) {
-            statusText.innerText = "無法開啟麥克風，請檢查權限設定";
-        });
-    };
+    // 點擊吐氣按鈕
+    breatheOutBtn.addEventListener('click', () => {
+        targetRadius = minRadius;
+        instructionText.innerText = "🍃 慢慢吐氣... 把煩惱都吐出來... (氣球縮小囉)";
+        instructionText.style.color = "#2196F3";
+        animate();
+    });
 </script>
 """
 import streamlit as st
