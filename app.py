@@ -62,11 +62,11 @@ balloon_logic_html = """
                 for(let i = 10; i < dataArray.length; i++) sum += dataArray[i];
                 let avg = sum / (dataArray.length - 10);
                 
-                document.getElementById('debug').innerText = "環境音量: " + Math.floor(avg) + " (門檻: 40)";
+                document.getElementById('debug').innerText = "環境音量: " + Math.floor(avg) + " (門檻: 100)";
 
                 // 核心邏輯：音量必須超過 40 且處於吹氣模式
                 if (mode === 'blowing') {
-                    if (avg > 60) {
+                    if (avg > 100) {
                         radius += 2.5; // 吹氣時長大
                     } else {
                         radius -= 0.5; // 沒吹時慢慢縮回
