@@ -8,18 +8,16 @@ from streamlit_mic_recorder import mic_recorder
 import whisper
 import random
 
-# --- 1. 呼吸氣球 HTML/JS (含精準頻率過濾與吹吸循環) ---
-balloon_logic_html = """
+# --- 1. 呼吸氣球 HTML (修正全形符號與增強靈敏度) ---
 balloon_logic_html = """
 <div style="text-align: center; font-family: sans-serif; background: #ffffff; padding: 10px; border-radius: 20px;">
     <canvas id="balloonCanvas" width="300" height="400"></canvas>
-    <div id="status" style="font-size: 20px; font-weight: bold; color: #ff4b4b; margin: 10px 0;">準備好練習呼吸了嗎？</div>
+    <div id="status" style="font-size: 20px; font-weight: bold; color: #ff4b4b; margin: 10px 0;">準備好練習呼吸了嗎?</div>
     <div id="debug" style="font-size: 12px; color: #ccc;">偵測數值: 0</div>
     <button id="startBtn" style="padding: 15px 30px; font-size: 18px; background: #ff4b4b; color: white; border: none; border-radius: 50px; cursor: pointer;">🎤 開始深呼吸練習</button>
 </div>
 
 <script>
-    // 確保重新取得元素
     var canvas = document.getElementById('balloonCanvas');
     var ctx = canvas.getContext('2d');
     var radius = 50;
@@ -29,16 +27,24 @@ balloon_logic_html = """
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // 目標虛線
-        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
-        ctx.setLineDash([5, 8]); ctx.strokeStyle = '#dddddd'; ctx.stroke(); ctx.setLineDash([]);
-        // 氣球
-        ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
-        ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b'; ctx.fill();
-        // 繩子
-        ctx.beginPath(); ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
+        ctx.beginPath(); 
+        ctx.arc(canvas.width/2, canvas.height/2, targetRadius, 0, Math.PI * 2);
+        ctx.setLineDash([5, 8]); 
+        ctx.strokeStyle = '#dddddd'; 
+        ctx.stroke(); 
+        ctx.setLineDash([]);
+        
+        ctx.beginPath(); 
+        ctx.arc(canvas.width/2, canvas.height/2, radius, 0, Math.PI * 2);
+        ctx.fillStyle = (mode === 'inhaling') ? '#4dabf7' : '#ff6b6b'; 
+        ctx.fill();
+        
+        ctx.beginPath(); 
+        ctx.moveTo(canvas.width/2, canvas.height/2 + radius);
         ctx.lineTo(canvas.width/2, canvas.height/2 + radius + 50);
-        ctx.strokeStyle = '#666'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.strokeStyle = '#666'; 
+        ctx.lineWidth = 3; 
+        ctx.stroke();
         requestAnimationFrame(draw);
     }
     draw();
@@ -63,21 +69,20 @@ balloon_logic_html = """
                 for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                 let avg = sum / dataArray.length;
                 
-                // 顯示數值給你看，方便我們除錯
                 document.getElementById('debug').innerText = "偵測數值: " + Math.floor(avg);
 
-                // 只需大於 10 就代表有收到聲音
+                // 超靈敏設定：只要有聲音(10)就視為在吹氣
                 if (avg > 10) {
-                    smoothedVolume = smoothedVolume * 0.5 + avg * 0.5;
+                    smoothedVolume = smoothedVolume * 0.4 + avg * 0.6;
                 } else {
                     smoothedVolume = smoothedVolume * 0.8;
                 }
 
                 if (mode === 'blowing') {
-                    if (smoothedVolume > 15) {
-                        radius += 1.5;
+                    if (smoothedVolume > 12) {
+                        radius += 2.0; // 長大快一點
                     } else {
-                        radius -= 0.2;
+                        radius -= 0.3;
                     }
                     if (radius >= targetRadius) {
                         mode = 'inhaling';
@@ -85,10 +90,10 @@ balloon_logic_html = """
                         document.getElementById('status').style.color = "#4dabf7";
                     }
                 } else if (mode === 'inhaling') {
-                    radius -= 0.4;
+                    radius -= 0.5; // 吸氣自動縮小
                     if (radius <= 55) {
                         mode = 'blowing';
-                        document.getElementById('status').innerText = "💨 再吐一次氣！";
+                        document.getElementById('status').innerText = "💨 再吐一次氣!";
                         document.getElementById('status').style.color = "#ff4b4b";
                     }
                 }
@@ -97,14 +102,13 @@ balloon_logic_html = """
             }
             process();
         } catch (err) {
-            document.getElementById('status').innerText = "❌ 麥克風啟動失敗";
+            document.getElementById('status').innerText = "❌ 麥克風權限被阻擋";
         }
     };
 </script>
 """
 
-
-# --- 2. 核心模型與存檔設定 ---
+# --- 2. 核心模型載入 ---
 st.set_page_config(page_title="情緒小精靈-研究版", page_icon="🌈")
 
 @st.cache_resource
@@ -117,10 +121,10 @@ emo_classifier, stt_model = load_models()
 label_map = {"LABEL_0": "平淡", "LABEL_1": "關切", "LABEL_2": "開心", "LABEL_3": "憤怒", 
              "LABEL_4": "悲傷", "LABEL_5": "疑問", "LABEL_6": "驚奇", "LABEL_7": "厭惡"}
 
-# --- 3. 學生操作介面 ---
+# --- 3. 介面設計 ---
 st.title("🌈 你的專屬情緒小精靈")
 
-st.markdown("### 📝 第一步：請確認個人資料")
+st.markdown("### 📝 第一步：請填寫基本資料")
 c1, c2, c3 = st.columns(3)
 with c1:
     grade = st.selectbox("年級", [f"{i}年級" for i in range(1, 7)])
@@ -132,29 +136,28 @@ with c3:
 st.divider()
 
 st.markdown("### 🎤 第二步：對小精靈說說心情")
-audio = mic_recorder(start_prompt="🎤 點我開始錄音", stop_prompt="🛑 說完了", key='recorder')
+audio = mic_recorder(start_prompt="🎤 點我錄音", stop_prompt="🛑 錄音結束", key='recorder')
 
 user_text = ""
 if audio:
-    with st.spinner('小精靈正在努力聽你說話...'):
+    with st.spinner('小精靈辨識中...'):
         with open("temp_audio.wav", "wb") as f:
             f.write(audio['bytes'])
         result = stt_model.transcribe("temp_audio.wav", fp16=False)
         user_text = result['text']
-        st.success(f"小精靈聽到了：{user_text}")
+        st.success(f"辨識結果：{user_text}")
 
-manual_text = st.text_input("或是你想用打字的也可以：", value=user_text)
+manual_text = st.text_input("或是用打字的：", value=user_text)
 final_text = manual_text if manual_text else user_text
 
-st.markdown("### 🧐 第三步：你覺得你現在的心情是？")
-student_self_label = st.radio("選擇心情：", ["開心", "平淡", "難過", "生氣", "害怕", "驚奇"], horizontal=True)
+st.markdown("### 🧐 第三步：你覺得現在心情如何?")
+student_self_label = st.radio("心情選擇：", ["開心", "平淡", "難過", "生氣", "害怕", "驚奇"], horizontal=True)
 
-if st.button("🚀 點我送出給小精靈"):
+if st.button("🚀 送出結果"):
     if final_text:
         prediction = emo_classifier(final_text)[0]
         ai_label = label_map.get(prediction['label'], "平淡")
         
-        # 存檔邏輯 (7個欄位齊全)
         file_path = "student_logs.csv"
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         new_data = pd.DataFrame([[now, grade, classroom, student_name, final_text, student_self_label, ai_label]], 
@@ -165,45 +168,40 @@ if st.button("🚀 點我送出給小精靈"):
         else:
             new_data.to_csv(file_path, mode='w', header=True, index=False, encoding='utf-8-sig')
             
-        # 設定回饋狀態
         st.session_state['last_label'] = ai_label
         st.session_state['submitted'] = True
-        st.rerun() # 送出後重置介面，避免重複偵測
+        st.rerun()
 
-# --- 4. 互動回饋區 (提交後顯示) ---
+# --- 4. 回饋顯示 ---
 if st.session_state.get('submitted'):
     label = st.session_state.get('last_label', '平淡')
     st.divider()
-    st.subheader(f"分析結果：{label}")
+    st.subheader(f"小精靈覺得你現在：{label}")
     
     if label in ["憤怒", "悲傷", "厭惡"]:
-        st.info("🌟 小精靈陪你練習深呼吸：吹氣碰到虛線，然後慢慢吸氣。")
+        st.info("🌟 氣球練習時間：對著麥克風吹氣讓氣球碰到虛線。")
         components.html(balloon_logic_html, height=600)
     else:
         st.balloons()
-        st.success("紀錄成功！你今天做得很棒！")
+        st.success("紀錄成功!你今天很棒唷!")
     
-    if st.button("完成練習"):
+    if st.button("關閉練習"):
         st.session_state['submitted'] = False
         st.rerun()
 
-# --- 5. 管理後台 ---
+# --- 5. 管理側邊欄 ---
 with st.sidebar:
-    st.title("⚙️ 研究管理")
-    if st.checkbox("開啟數據模式"):
-        file_path = "student_logs.csv"
-        if os.path.exists(file_path):
+    st.title("⚙️ 管理員選單")
+    if st.checkbox("開啟數據查詢"):
+        if os.path.exists("student_logs.csv"):
             try:
-                df = pd.read_csv(file_path)
+                df = pd.read_csv("student_logs.csv")
                 st.dataframe(df)
-                st.download_button("📥 下載研究數據", df.to_csv(index=False).encode('utf-8-sig'), "data.csv")
+                st.download_button("📥 下載數據", df.to_csv(index=False).encode('utf-8-sig'), "data.csv")
             except:
-                st.error("偵測到舊格式衝突，請點擊下方重置按鈕。")
-        else:
-            st.info("目前尚無數據。")
+                st.error("資料格式有誤，請點下方重置。")
     
-    st.divider()
-    if st.button("🚨 強制重置資料庫 (清除紅字)"):
+    if st.button("🚨 清空數據資料庫"):
         if os.path.exists("student_logs.csv"):
             os.remove("student_logs.csv")
             st.rerun()
