@@ -207,3 +207,22 @@ if final_text:
         if st.button("我做完了三次呼吸，感覺好一點了！"):
             st.balloons()
             st.success("你真棒！成功找回平靜的能量囉！")
+# --- 老師管理區塊 (新增) ---
+with st.sidebar:
+    st.divider()
+    st.title("📊 研究數據管理")
+    if st.checkbox("查看學生紀錄清單"):
+        if os.path.exists("student_logs.csv"):
+            df = pd.read_csv("student_logs.csv")
+            st.dataframe(df) # 在網頁上顯示表格
+            
+            # 製作下載按鈕
+            csv_data = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 下載完整資料報表 (CSV)",
+                data=csv_data,
+                file_name=f"情緒紀錄_{datetime.now().strftime('%m%d')}.csv",
+                mime="text/csv",
+            )
+        else:
+            st.info("目前還沒有學生紀錄喔！")
