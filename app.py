@@ -78,7 +78,23 @@ from transformers import pipeline
 from streamlit_mic_recorder import mic_recorder
 import whisper
 import os
+import pandas as pd
+from datetime import datetime
 
+# --- 資料紀錄函數 (新加入的區塊) ---
+def save_data(user_input, emotion_label):
+    file_path = "student_logs.csv"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 建立新的一行資料
+    new_data = pd.DataFrame([[now, user_input, emotion_label]], 
+                            columns=["時間", "學生輸入", "辨識情緒"])
+    
+    # 如果檔案已存在就附加(a)，不存在就建立(w)
+    if os.path.exists(file_path):
+        new_data.to_csv(file_path, mode='a', header=False, index=False, encoding='utf-8-sig')
+    else:
+        new_data.to_csv(file_path, mode='w', header=True, index=False, encoding='utf-8-sig')
 # 1. 網頁基礎設定
 st.set_page_config(page_title="情緒小精靈-語音版", page_icon="🌈")
 st.title("🌈 你的專屬情緒小精靈 (語音版)")
